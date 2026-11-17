@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#3b82f6">
+  <title>Tracker Posisi Izin Keluar - Bimbel</title>
+  <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { margin: 0; background: #eff6ff; color: #111; padding: 16px; display: flex; justify-content: center; }
+    .container { width: 100%; max-width: 480px; }
+    header { background: #1d4ed8; color: white; padding: 16px; border-radius: 12px 12px 0 0; text-align: center; }
+    h1 { font-size: 1.2rem; margin: 0; }
+    .card-body { background: white; padding: 16px; border-radius: 0 0 12px 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+
+    .section { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9; }
+    .section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+
+    label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px; color: #555; }
+    input[type="text"], input[type="file"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 0.95rem; }
+
+    .grid-lokasi { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+    .btn-lokasi { background: #f3f4f6; border: 2px solid #e5e7eb; padding: 10px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; cursor: pointer; text-align: center; color: #374151; transition: all 0.2s; }
+    .btn-lokasi:active, .btn-lokasi.selected { background: #dbeafe; border-color: #3b82f6; color: #1e40af; }
+
+    .btn-aksi { display: block; width: 100%; text-align: center; background: #2563eb; color: white; text-decoration: none; padding: 14px; border-radius: 8px; font-weight: 700; font-size: 1rem; border: none; cursor: pointer; margin-top: 16px; }
+    .btn-aksi:active { background: #1d4ed8; }
+    .btn-kembali { background: #16a34a; }
+    .btn-kembali:active { background: #15803d; }
+
+    .status-box { margin-top: 15px; padding: 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; display: none; }
+    .student-name { font-size: 1.2rem; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+    .student-status { font-size: 0.9rem; margin-bottom: 12px; font-weight: 600; }
+
+    .badge-dalam { color: #16a34a; background: #dcfce7; padding: 2px 8px; border-radius: 4px; }
+    .badge-luar { color: #d97706; background: #fef3c7; padding: 2px 8px; border-radius: 4px; }
+
+    .live-list { margin-top: 15px; font-size: 0.85rem; }
+    .live-item { background: #fffbeb; border: 1px solid #fde68a; padding: 8px 12px; border-radius: 6px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
+    .live-item.warning { background: #fef2f2; border-color: #fecaca; }
+    .live-durasi { font-size: 0.75rem; font-weight: 700; color: #b45309; }
+    .live-durasi.long { color: #dc2626; }
+
+    .scan-btn {
+      background: #1d4ed8;
+      color: white;
+      border: none;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .scan-btn.stop { background: #dc2626; }
+    #reader {
+      display: none;
+      margin-top: 12px;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    #reader.active { display: block; }
+
+    .export-bar {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .export-bar button {
+      flex: 1;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-export-log { background: #0f766e; color: white; }
+    .btn-clear-log { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0 !important; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📍 Tracker Posisi Izin Keluar</h1>
+    </header>
+
+    <div class="card-body">
+      <!-- 1. Upload Database CSV -->
+      <div class="section">
+        <label>1. Unggah Data Siswa (CSV)</label>
+        <input type="file" id="csvFile" accept=".csv" onchange="bacaCSV(event)">
+        <small style="color: #888; font-size: 0.75rem; display: block; margin-top: 4px;">
+          Format didukung: <code>Nama,Kode</code> atau <code>Kode,Nama</code> (header otomatis dilewati).
+        </small>
+      </div>
+
+      <!-- 2. Scan / Input ID Kartu -->
+      <div class="section">
+        <label>2. Scan Kartu / Ketik ID (Contoh: S20001)</label>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="inputID" placeholder="Scan QR ID di sini..." onkeypress="cekEnter(event)">
+          <button class="scan-btn" id="btnScan" onclick="toggleScan()">📷 Scan</button>
+          <button class="btn-aksi" style="margin-top:0; width: 80px;" onclick="cariSiswa()">Cari</button>
+        </div>
+        <div id="reader"></div>
+      </div>
+
+      <!-- Panel Aksi Siswa -->
+      <div id="statusBox" class="status-box">
+        <div class="student-name" id="resNama">-</div>
+        <div class="student-status" id="resStatus">-</div>
+
+        <div id="panelKeluar" style="display: none;">
+          <label>Pilih Tujuan Keluar:</label>
+          <div class="grid-lokasi">
+            <button class="btn-lokasi" onclick="pilihTujuan('Alfamart', this)">🏪 Alfamart</button>
+            <button class="btn-lokasi" onclick="pilihTujuan('Tianlala', this)">🧋 Tianlala</button>
+            <button class="btn-lokasi" onclick="pilihTujuan('MW', this)">🏬 MW</button>
+            <button class="btn-lokasi" onclick="pilihTujuan('Jajan di depan', this)">🍢 Jajan di depan</button>
+            <button class="btn-lokasi" onclick="pilihTujuan('Indomaret', this)">🛒 Indomaret</button>
+            <button class="btn-lokasi" onclick="pilihTujuan('Ethan Cafe', this)">☕ Ethan Cafe</button>
+            <button class="btn-lokasi" onclick="pilihTujuan('Print/Fotokopi', this)">📄 Print/Fotokopi</button>
+            <button class="btn-lokasi" onclick="pilihTujuan('Tempat Lain', this)">📍 Tempat Lain</button>
+          </div>
+
+          <div class="section" id="boxLain" style="display: none; margin-top: 12px; border:none; padding:0;">
+            <input type="text" id="inputLain" placeholder="Tuliskan tempat lainnya...">
+          </div>
+
+          <button class="btn-aksi" onclick="catatKeluar()">Catat Keluar Gedung 🚀</button>
+        </div>
+
+        <div id="panelKembali" style="display: none;">
+          <button class="btn-aksi btn-kembali" onclick="catatKembali()">✅ Sudah Kembali ke Bimbel</button>
+        </div>
+      </div>
+
+      <!-- Live Daftar Siswa yang Sedang di Luar -->
+      <div class="section" style="margin-top: 10px; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+        <label>🔴 Siswa yang Sedang di Luar Saat Ini:</label>
+        <div id="liveContainer" class="live-list">
+          <span style="color: #888; font-size: 0.8rem;">Tidak ada siswa di luar.</span>
+        </div>
+      </div>
+
+      <!-- Ekspor Log -->
+      <div class="section" style="border-top: 1px solid #e2e8f0; padding-top: 12px; margin-top: 10px;">
+        <label>📋 Arsip Aktivitas (<span id="logCount">0</span> catatan)</label>
+        <div class="export-bar">
+          <button class="btn-export-log" onclick="eksporLog()">📤 Ekspor Log CSV</button>
+          <button class="btn-clear-log" onclick="hapusLog()">🗑️ Hapus</button>
+        </div>
+        <small style="color: #888; font-size: 0.7rem; display: block; margin-top: 6px;">
+          Log mencatat setiap kejadian keluar/kembali beserta durasinya. Ekspor sebelum menutup tab.
+        </small>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let dbSiswa = [
+      { id: "S20001", nama: "Nina", status: "di_dalam", tujuan: "", waktu: "", waktuKeluarISO: null },
+      { id: "S20002", nama: "Budi", status: "di_dalam", tujuan: "", waktu: "", waktuKeluarISO: null },
+      { id: "S20003", nama: "Clara", status: "di_dalam", tujuan: "", waktu: "", waktuKeluarISO: null }
+    ];
+
+    let siswaAktif = null;
+    let tujuanTerpilih = "";
+
+    // ===== LOG AKTIVITAS =====
+    // Entri "keluar": { waktu, id, nama, aksi:"keluar", tujuan, durasiMenit: null }
+    // Entri "kembali": { waktu, id, nama, aksi:"kembali", tujuan, durasiMenit: number }
+    let logAktivitas = [];
+
+    function catatLog(id, nama, aksi, tujuan, durasiMenit = null) {
+      logAktivitas.push({
+        waktu: new Date().toISOString(),
+        id: id,
+        nama: nama,
+        aksi: aksi,
+        tujuan: tujuan || "",
+        durasiMenit: durasiMenit
+      });
+      document.getElementById("logCount").textContent = logAktivitas.length;
+    }
+
+    function eksporLog() {
+      if (logAktivitas.length === 0) {
+        alert("Belum ada log aktivitas untuk diekspor.");
+        return;
+      }
+
+      let csv = "Waktu,ID,Nama,Aksi,Tujuan,Durasi (menit)\n";
+      logAktivitas.forEach(l => {
+        const tgl = new Date(l.waktu);
+        const waktuLokal = tgl.toLocaleString("id-ID");
+        const durasi = l.durasiMenit != null ? l.durasiMenit : "";
+        csv += `"${waktuLokal}",${l.id},"${l.nama}",${l.aksi},"${l.tujuan}",${durasi}\n`;
+      });
+
+      const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      const tglFile = new Date().toISOString().slice(0, 10);
+      link.href = URL.createObjectURL(blob);
+      link.download = `log_izin_keluar_${tglFile}.csv`;
+      link.click();
+    }
+
+    function hapusLog() {
+      if (logAktivitas.length === 0) return;
+      if (!confirm(`Hapus ${logAktivitas.length} catatan log? Pastikan sudah diekspor.`)) return;
+      logAktivitas = [];
+      document.getElementById("logCount").textContent = "0";
+    }
+
+    // ===== SCAN QR =====
+    let html5QrCode = null;
+    let scanning = false;
+
+    function toggleScan() {
+      if (scanning) stopScan();
+      else startScan();
+    }
+
+    function startScan() {
+      html5QrCode = new Html5Qrcode("reader");
+      document.getElementById("reader").classList.add("active");
+
+      html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        onScanSuccess,
+        () => {}
+      ).then(() => {
+        scanning = true;
+        const btn = document.getElementById("btnScan");
+        btn.textContent = "⏹ Stop";
+        btn.classList.add("stop");
+      }).catch(err => {
+        alert("Gagal buka kamera: " + err);
+        document.getElementById("reader").classList.remove("active");
+      });
+    }
+
+    function stopScan() {
+      if (html5QrCode) {
+        html5QrCode.stop().then(() => {
+          html5QrCode.clear();
+          html5QrCode = null;
+        }).catch(() => {});
+      }
+      scanning = false;
+      document.getElementById("reader").classList.remove("active");
+      const btn = document.getElementById("btnScan");
+      btn.textContent = "📷 Scan";
+      btn.classList.remove("stop");
+    }
+
+    function onScanSuccess(decodedText) {
+      document.getElementById("inputID").value = decodedText.trim();
+      stopScan();
+      cariSiswa();
+    }
+
+    // ===== BACA CSV =====
+    function bacaCSV(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const text = e.target.result;
+        const rows = text.split(/\r?\n/);
+        let dataBaru = [];
+
+        function deteksiPemisah(baris) {
+          if (baris.includes('\t')) return '\t';
+          if (baris.includes(';')) return ';';
+          return ',';
+        }
+
+        function terlihatSepertiKode(s) {
+          return /^[A-Za-z]\d{6,}$/.test(s) || /^\d{6,}$/.test(s);
+        }
+
+        for (let i = 0; i < rows.length; i++) {
+          let row = rows[i].trim();
+          if (!row) continue;
+
+          const pemisah = deteksiPemisah(row);
+          let cols = row.split(pemisah).map(c => c.trim().replace(/^["']+|["']+$/g, ''));
+
+          if (cols.length < 2) continue;
+
+          const c0 = cols[0].toLowerCase();
+          const c1 = (cols[1] || '').toLowerCase();
+          if (
+            c0 === 'name' || c0 === 'nama' || c0 === 'id' ||
+            c1 === 'code' || c1 === 'kode' || c1 === 'wa'
+          ) continue;
+
+          let idSiswa, namaSiswa;
+
+          if (terlihatSepertiKode(cols[1])) {
+            namaSiswa = cols[0];
+            idSiswa = cols[1];
+          } else if (terlihatSepertiKode(cols[0])) {
+            idSiswa = cols[0];
+            namaSiswa = cols[1];
+          } else {
+            if (cols.length >= 3) {
+              idSiswa = cols[0];
+              namaSiswa = cols[1];
+            } else {
+              idSiswa = "S20" + String(dataBaru.length + 1).padStart(3, '0');
+              namaSiswa = cols[0];
+            }
+          }
+
+          if (idSiswa && namaSiswa) {
+            dataBaru.push({
+              id: idSiswa,
+              nama: namaSiswa,
+              status: "di_dalam",
+              tujuan: "",
+              waktu: "",
+              waktuKeluarISO: null
+            });
+          }
+        }
+
+        if (dataBaru.length > 0) {
+          dbSiswa = dataBaru;
+          alert(`Berhasil memuat ${dbSiswa.length} data siswa dari CSV!`);
+        } else {
+          alert("Format CSV tidak terbaca. Pastikan ada kolom Nama dan Kode.");
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function cekEnter(e) {
+      if (e.key === 'Enter') {
+        cariSiswa();
+      }
+    }
+
+    function cariSiswa() {
+      const idInput = document.getElementById('inputID').value.trim();
+      if (!idInput) return;
+
+      siswaAktif = dbSiswa.find(s => s.id.toLowerCase() === idInput.toLowerCase() || s.nama.toLowerCase().includes(idInput.toLowerCase()));
+
+      const statusBox = document.getElementById('statusBox');
+      const panelKeluar = document.getElementById('panelKeluar');
+      const panelKembali = document.getElementById('panelKembali');
+
+      if (siswaAktif) {
+        document.getElementById('resNama').innerText = "👤 " + siswaAktif.nama + " (" + siswaAktif.id + ")";
+
+        if (siswaAktif.status === "di_dalam") {
+          document.getElementById('resStatus').innerHTML = `Status: <span class="badge-dalam">Sedang di dalam bimbel</span>`;
+          panelKeluar.style.display = 'block';
+          panelKembali.style.display = 'none';
+          tujuanTerpilih = "";
+          document.querySelectorAll('.btn-lokasi').forEach(b => b.classList.remove('selected'));
+          document.getElementById('boxLain').style.display = 'none';
+        } else {
+          const durasi = hitungDurasi(siswaAktif.waktuKeluarISO);
+          document.getElementById('resStatus').innerHTML = `Status: <span class="badge-luar">Keluar ke ${siswaAktif.tujuan} (${siswaAktif.waktu}) — sudah ${durasi} menit</span>`;
+          panelKeluar.style.display = 'none';
+          panelKembali.style.display = 'block';
+        }
+
+        statusBox.style.display = 'block';
+      } else {
+        statusBox.style.display = 'none';
+        alert(`ID atau Nama "${idInput}" tidak ditemukan di database!`);
+      }
+
+      document.getElementById('inputID').value = '';
+      document.getElementById('inputID').focus();
+    }
+
+    function hitungDurasi(isoKeluar) {
+      if (!isoKeluar) return 0;
+      const selisihMs = Date.now() - new Date(isoKeluar).getTime();
+      return Math.max(0, Math.round(selisihMs / 60000));
+    }
+
+    function pilihTujuan(tujuan, el) {
+      document.querySelectorAll('.btn-lokasi').forEach(b => b.classList.remove('selected'));
+      el.classList.add('selected');
+      tujuanTerpilih = tujuan;
+
+      const boxLain = document.getElementById('boxLain');
+      if (tujuan === 'Tempat Lain') {
+        boxLain.style.display = 'block';
+        document.getElementById('inputLain').focus();
+      } else {
+        boxLain.style.display = 'none';
+      }
+    }
+
+    function catatKeluar() {
+      if (!tujuanTerpilih) {
+        alert("Pilih tujuan keluar terlebih dahulu!");
+        return;
+      }
+
+      let finalTujuan = tujuanTerpilih;
+      if (finalTujuan === 'Tempat Lain') {
+        finalTujuan = document.getElementById('inputLain').value.trim() || 'Tempat Lain';
+      }
+
+      const now = new Date();
+      const waktuKeluar = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+      siswaAktif.status = "di_luar";
+      siswaAktif.tujuan = finalTujuan;
+      siswaAktif.waktu = waktuKeluar;
+      siswaAktif.waktuKeluarISO = now.toISOString();
+
+      catatLog(siswaAktif.id, siswaAktif.nama, "keluar", finalTujuan, null);
+
+      resetForm();
+      updateLiveList();
+    }
+
+    function catatKembali() {
+      const now = new Date();
+      const durasiMenit = hitungDurasi(siswaAktif.waktuKeluarISO);
+
+      catatLog(siswaAktif.id, siswaAktif.nama, "kembali", siswaAktif.tujuan, durasiMenit);
+
+      siswaAktif.status = "di_dalam";
+      siswaAktif.tujuan = "";
+      siswaAktif.waktu = "";
+      siswaAktif.waktuKeluarISO = null;
+
+      resetForm();
+      updateLiveList();
+
+      alert(`✅ ${siswaAktif ? siswaAktif.nama : "Siswa"} kembali. Durasi di luar: ${durasiMenit} menit.`);
+    }
+
+    function resetForm() {
+      document.getElementById('statusBox').style.display = 'none';
+      siswaAktif = null;
+      document.getElementById('inputID').focus();
+    }
+
+    function updateLiveList() {
+      const container = document.getElementById('liveContainer');
+      const siswaDiLuar = dbSiswa.filter(s => s.status === "di_luar");
+
+      if (siswaDiLuar.length === 0) {
+        container.innerHTML = `<span style="color: #888; font-size: 0.8rem;">Tidak ada siswa di luar.</span>`;
+        return;
+      }
+
+      container.innerHTML = "";
+      siswaDiLuar.forEach(s => {
+        const durasi = hitungDurasi(s.waktuKeluarISO);
+        const isLong = durasi >= 30;
+        const item = document.createElement("div");
+        item.className = "live-item" + (isLong ? " warning" : "");
+        item.innerHTML = `
+          <div><strong>${s.nama}</strong> ➔ ${s.tujuan}</div>
+          <div style="text-align:right">
+            <div style="font-size:0.7rem;color:#b45309">Keluar: ${s.waktu}</div>
+            <div class="live-durasi${isLong ? " long" : ""}">${durasi} menit${isLong ? " ⚠️" : ""}</div>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    // Update durasi live setiap 30 detik
+    setInterval(() => {
+      if (dbSiswa.some(s => s.status === "di_luar")) {
+        updateLiveList();
+      }
+    }, 30000);
+  </script>
+</body>
+</html>
