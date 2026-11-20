@@ -251,6 +251,7 @@
         tampilkanError('Muat data siswa gagal', error);
         return;
       }
+      sembunyikanError();
       dbSiswa = data || [];
       updateLiveList();
       if (siswaAktif) {
@@ -268,6 +269,7 @@
         tampilkanError('Muat log gagal', error);
         return;
       }
+      sembunyikanError();
       logAktivitas = data || [];
       document.getElementById('logCount').textContent = logAktivitas.length;
     }
@@ -572,6 +574,7 @@
 
     // ===== INIT =====
     (async function init() {
+      sembunyikanError();
       setConnStatus('Menghubungkan...');
       await syncStudentsFromJSON();
       await loadStudents();
