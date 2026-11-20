@@ -195,7 +195,7 @@
       else if (err && err.error_description) pesan = err.error_description;
       else if (typeof err === 'string') pesan = err;
       else if (err) pesan = JSON.stringify(err);
-      panel.textContent = '⚠️ ' + label + ': ' + pesan;
+      panel.textContent = '⚠️ ' + label + ': ' + pesan + '\nSilahkan refresh halaman.';
       panel.classList.add('visible');
     }
 
