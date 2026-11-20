@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#3b82f6">
   <title>Tracker Posisi Izin Keluar - Bimbel</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
@@ -14,6 +14,20 @@
     header { background: #1d4ed8; color: white; padding: 16px; border-radius: 12px 12px 0 0; text-align: center; }
     h1 { font-size: 1.2rem; margin: 0; }
     .card-body { background: white; padding: 16px; border-radius: 0 0 12px 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+
+    .error-panel {
+      display: none;
+      background: #fef2f2;
+      border: 2px solid #dc2626;
+      color: #7f1d1d;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      margin-bottom: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .error-panel.visible { display: block; }
 
     .section { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9; }
     .section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
@@ -93,6 +107,8 @@
     </header>
 
     <div class="card-body">
+      <div id="errorPanel" class="error-panel"></div>
+
       <!-- Scan / Input ID Kartu -->
       <div class="section">
         <label>Scan Kartu / Ketik ID atau Nama</label>
@@ -159,7 +175,7 @@
 
   <script>
     // ============================================================
-    // KONFIGURASI — GANTI DUA BARIS INI SAJA
+    // KONFIGURASI
     // ============================================================
     const SUPABASE_URL = 'https://yjdumalkhkjujcflecmc.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqZHVtYWxraGtqdWpjZmxlY21jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUxNDE0NzMsImV4cCI6MjExMDcxNzQ3M30.Zr8V71wh2-juFeDh6D549qlTooTcb3rO118rCYriww0';
@@ -170,6 +186,24 @@
     let siswaAktif = null;
     let tujuanTerpilih = "";
     let logAktivitas = [];
+
+    // ===== PANEL ERROR DI LAYAR =====
+    function tampilkanError(label, err) {
+      const panel = document.getElementById('errorPanel');
+      let pesan = '';
+      if (err && err.message) pesan = err.message;
+      else if (err && err.error_description) pesan = err.error_description;
+      else if (typeof err === 'string') pesan = err;
+      else if (err) pesan = JSON.stringify(err);
+      panel.textContent = '⚠️ ' + label + ': ' + pesan;
+      panel.classList.add('visible');
+    }
+
+    function sembunyikanError() {
+      const panel = document.getElementById('errorPanel');
+      panel.classList.remove('visible');
+      panel.textContent = '';
+    }
 
     // ===== UTIL =====
     function setConnStatus(text, cls) {
@@ -188,7 +222,7 @@
     async function syncStudentsFromJSON() {
       try {
         const res = await fetch('./data/students.json', { cache: 'no-store' });
-        if (!res.ok) throw new Error('File data/students.json tidak ditemukan');
+        if (!res.ok) throw new Error('File data/students.json tidak ditemukan (HTTP ' + res.status + ')');
         const students = await res.json();
         if (!Array.isArray(students) || students.length === 0) {
           throw new Error('students.json kosong atau format salah');
@@ -205,14 +239,18 @@
         console.log(`Sinkronisasi siswa: ${payload.length} entri`);
       } catch (err) {
         console.error('Sinkronisasi gagal:', err);
-        // Tidak fatal: lanjut muat data yang sudah ada di database
+        tampilkanError('Sinkronisasi siswa gagal', err);
       }
     }
 
     // ===== MUAT DATA =====
     async function loadStudents() {
       const { data, error } = await sb.from('students').select('*').order('nama');
-      if (error) { console.error('loadStudents:', error); return; }
+      if (error) {
+        console.error('loadStudents:', error);
+        tampilkanError('Muat data siswa gagal', error);
+        return;
+      }
       dbSiswa = data || [];
       updateLiveList();
       if (siswaAktif) {
@@ -225,7 +263,11 @@
     async function loadLogs() {
       const { data, error } = await sb.from('activity_logs')
         .select('*').order('created_at', { ascending: true });
-      if (error) { console.error('loadLogs:', error); return; }
+      if (error) {
+        console.error('loadLogs:', error);
+        tampilkanError('Muat log gagal', error);
+        return;
+      }
       logAktivitas = data || [];
       document.getElementById('logCount').textContent = logAktivitas.length;
     }
@@ -238,7 +280,10 @@
           () => loadStudents())
         .subscribe((status) => {
           if (status === 'SUBSCRIBED') setConnStatus('🟢 Tersambung real-time', 'ok');
-          else if (status === 'CHANNEL_ERROR') setConnStatus('🔴 Gagal real-time', 'err');
+          else if (status === 'CHANNEL_ERROR') {
+            setConnStatus('🔴 Gagal real-time', 'err');
+            tampilkanError('Realtime', 'Gagal berlangganan kanal students');
+          }
         });
 
       sb.channel('logs-realtime')
@@ -387,6 +432,7 @@
 
       if (errUpdate) {
         alert('Gagal menyimpan: ' + errUpdate.message);
+        tampilkanError('Catat keluar gagal', errUpdate);
         btn.disabled = false;
         btn.textContent = 'Catat Keluar Gedung 🚀';
         return;
@@ -426,6 +472,7 @@
 
       if (errUpdate) {
         alert('Gagal menyimpan: ' + errUpdate.message);
+        tampilkanError('Catat kembali gagal', errUpdate);
         btn.disabled = false;
         btn.textContent = '✅ Sudah Kembali ke Bimbel';
         return;
@@ -516,6 +563,7 @@
       const { error } = await sb.from('activity_logs').delete().neq('id', 0);
       if (error) {
         alert('Gagal menghapus log: ' + error.message);
+        tampilkanError('Hapus log gagal', error);
         return;
       }
       await loadLogs();
