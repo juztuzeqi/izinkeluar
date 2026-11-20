@@ -278,11 +278,12 @@
         .on('postgres_changes',
           { event: '*', schema: 'public', table: 'students' },
           () => loadStudents())
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') setConnStatus('🟢 Tersambung real-time', 'ok');
-          else if (status === 'CHANNEL_ERROR') {
+        .subscribe((status, err) => {
+          if (status === 'SUBSCRIBED') {
+            setConnStatus('🟢 Tersambung real-time', 'ok');
+          } else if (status === 'CHANNEL_ERROR') {
             setConnStatus('🔴 Gagal real-time', 'err');
-            tampilkanError('Realtime', 'Gagal berlangganan kanal students');
+            tampilkanError('Realtime', err ? (err.message || JSON.stringify(err)) : 'Gagal berlangganan kanal students');
           }
         });
 
